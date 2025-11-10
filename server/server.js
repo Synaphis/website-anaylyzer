@@ -1,5 +1,5 @@
+// server/server.js
 import puppeteer from "puppeteer-core";
-import chromium from "chrome-aws-lambda";
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -21,7 +21,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Helper: convert text → HTML
-function textToHTML(text) { 
+function textToHTML(text) {
   const lines = text.split("\n");
   let html = "";
   let inList = false;
@@ -46,6 +46,7 @@ app.use((req, res, next) => {
   next();
 });
 
+// Analyze website
 app.post("/analyze", async (req, res) => {
   try {
     const { url } = req.body;
@@ -58,6 +59,7 @@ app.post("/analyze", async (req, res) => {
   }
 });
 
+// Generate PDF report
 app.post("/report-pdf", async (req, res) => {
   try {
     const { data } = req.body;
@@ -80,9 +82,9 @@ Actionable Recommendations
 Write in professional tone, plain text, no markdown.
 `;
 
-    const client = new OpenAI({ 
-      baseURL: "https://router.huggingface.co/v1", 
-      apiKey: process.env.HUGGINGFACE_API_KEY 
+    const client = new OpenAI({
+      baseURL: "https://router.huggingface.co/v1",
+      apiKey: process.env.HUGGINGFACE_API_KEY,
     });
 
     const response = await client.chat.completions.create({
@@ -101,12 +103,11 @@ Write in professional tone, plain text, no markdown.
       .replace("{{date}}", new Date().toLocaleDateString())
       .replace("{{{reportText}}}", formattedHTML);
 
-    // Use chrome-aws-lambda
+    // Puppeteer using system Chrome
     const browser = await puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath,
-      headless: chromium.headless,
+      headless: true,
+      executablePath: process.env.CHROME_PATH || "/usr/bin/google-chrome",
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
 
     const page = await browser.newPage();
