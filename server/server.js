@@ -1,13 +1,12 @@
-import puppeteer, { executablePath } from "puppeteer";
+// backend/server/server.js
+import puppeteer from "puppeteer";
 import express from "express";
 import cors from "cors";
 import fs from "fs";
 import path from "path";
-import OpenAI from "openai"; // client wrapper for Hugging Face router
+import OpenAI from "openai";
 import { analyzeWebsite } from "../lib/analyze.mjs";
 import { fileURLToPath } from "url";
-import { launch as launchChrome } from "chrome-launcher";
-import lighthouse from "lighthouse";
 
 const app = express();
 app.use(cors({ origin: "*" }));
@@ -26,17 +25,11 @@ function textToHTML(text) {
     line = line.trim();
     if (!line) continue;
     if (/^-/.test(line)) {
-      if (!inList) {
-        html += "<ul>";
-        inList = true;
-      }
+      if (!inList) html += "<ul>", (inList = true);
       html += `<li>${line.replace(/^- /, "")}</li>`;
       continue;
     }
-    if (inList) {
-      html += "</ul>";
-      inList = false;
-    }
+    if (inList) html += "</ul>", (inList = false);
     html += `<p>${line}</p>`;
   }
   if (inList) html += "</ul>";
@@ -44,10 +37,10 @@ function textToHTML(text) {
 }
 
 // ---------------- ROUTES ----------------
+
+// Log all requests
 app.use((req, res, next) => {
-  console.log(
-    `[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${req.headers.origin}`
-  );
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
   next();
 });
 
@@ -71,7 +64,6 @@ app.post("/report-pdf", async (req, res) => {
     const { data } = req.body;
     if (!data) return res.status(400).json({ error: "Missing analysis JSON" });
 
-    // --- LLM Prompt ---
     const prompt = `
 You are a professional website auditor.
 Write a detailed audit report based on this JSON:
@@ -101,9 +93,7 @@ Write in professional tone, plain text, no markdown.
       max_tokens: 1800,
     });
 
-    const reportText =
-      response.choices?.[0]?.message?.content?.trim() ||
-      "No content generated.";
+    const reportText = response.choices?.[0]?.message?.content?.trim() || "No content generated.";
     const formattedHTML = textToHTML(reportText);
 
     // --- Load HTML template ---
@@ -114,18 +104,19 @@ Write in professional tone, plain text, no markdown.
       .replace("{{date}}", new Date().toLocaleDateString())
       .replace("{{{reportText}}}", formattedHTML);
 
-    // --- Puppeteer launch for Render ---
+    // --- Puppeteer launch using bundled Chromium ---
     const browser = await puppeteer.launch({
       headless: true,
-      executablePath: executablePath(), // ensure Puppeteer uses bundled Chromium
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--disable-gpu",
         "--single-process",
-        "--no-zygote",
+        "--no-zygote"
       ],
+      // important: uses Puppeteer's bundled Chromium
+      executablePath: puppeteer.executablePath(),
     });
 
     const page = await browser.newPage();
@@ -140,10 +131,7 @@ Write in professional tone, plain text, no markdown.
     await browser.close();
 
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename=Website_Audit.pdf`
-    );
+    res.setHeader("Content-Disposition", `attachment; filename=Website_Audit.pdf`);
     res.send(pdfBuffer);
   } catch (error) {
     console.error("PDF Generation Error:", error);
@@ -151,34 +139,7 @@ Write in professional tone, plain text, no markdown.
   }
 });
 
-// --- Optional Lighthouse endpoint ---
-app.post("/performance", async (req, res) => {
-  try {
-    const { url } = req.body;
-    if (!url) return res.status(400).json({ error: "URL is required" });
-
-    const chrome = await launchChrome({
-      chromePath: executablePath(),
-      chromeFlags: ["--headless", "--no-sandbox"],
-    });
-
-    const result = await lighthouse(url, {
-      logLevel: "error",
-      output: "json",
-      onlyCategories: ["performance"],
-      port: chrome.port,
-    });
-
-    await chrome.kill();
-
-    res.json({ performance: result.lhr.categories.performance });
-  } catch (error) {
-    console.error("Lighthouse Error:", error);
-    res.status(500).json({ error: "Failed to get performance metrics" });
-  }
-});
-
 // --- Start server ---
-app.listen(process.env.PORT || 4000, () =>
-  console.log("✅ Analyzer backend running")
-);
+app.listen(process.env.PORT || 4000, () => {
+  console.log("✅ Analyzer backend running");
+});
