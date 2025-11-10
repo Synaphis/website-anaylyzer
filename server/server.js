@@ -14,6 +14,7 @@ app.use(express.json());
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Convert plain text → HTML
 function textToHTML(text) {
   const lines = text.split("\n");
   let html = "";
@@ -21,11 +22,15 @@ function textToHTML(text) {
   for (let line of lines) {
     line = line.trim();
     if (!line) continue;
+
+    // Convert bullet points
     if (/^-/.test(line)) {
       if (!inList) { html += "<ul>"; inList = true; }
       html += `<li>${line.replace(/^- /, "")}</li>`;
       continue;
     }
+
+    // Paragraph
     if (inList) { html += "</ul>"; inList = false; }
     html += `<p>${line}</p>`;
   }
@@ -33,13 +38,13 @@ function textToHTML(text) {
   return html;
 }
 
-// ---------------- Routes ----------------
+// Log requests
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
   next();
 });
 
-// Analyze website
+// -------------------- ROUTE 1: ANALYZE WEBSITE --------------------
 app.post("/analyze", async (req, res) => {
   try {
     const { url } = req.body;
@@ -53,7 +58,7 @@ app.post("/analyze", async (req, res) => {
   }
 });
 
-// Generate PDF report
+// -------------------- ROUTE 2: GENERATE PDF --------------------
 app.post("/report-pdf", async (req, res) => {
   try {
     const { data } = req.body;
@@ -76,10 +81,14 @@ Actionable Recommendations
 Write in professional tone, plain text, no markdown.
 `;
 
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    // ✅ USE HUGGINGFACE, NOT OPENAI
+    const client = new OpenAI({
+      baseURL: "https://router.huggingface.co/v1",
+      apiKey: process.env.HUGGINGFACE_API_KEY,
+    });
 
     const response = await client.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "meta-llama/Llama-3.1-8B-Instruct:novita",
       messages: [{ role: "user", content: prompt }],
       max_tokens: 1800,
     });
@@ -89,16 +98,27 @@ Write in professional tone, plain text, no markdown.
 
     const templatePath = path.join(__dirname, "templates/report.html");
     let html = fs.readFileSync(templatePath, "utf8");
+
     html = html
       .replace("{{url}}", data.url)
       .replace("{{date}}", new Date().toLocaleDateString())
       .replace("{{{reportText}}}", formattedHTML);
 
-    const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
+    // ✅ Puppeteer PDF generation
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"]
+    });
+
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
 
-    const pdfBuffer = await page.pdf({ format: "A4", printBackground: true, margin: { top: 0, bottom: 0, left: 0, right: 0 } });
+    const pdfBuffer = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: { top: 0, bottom: 0, left: 0, right: 0 }
+    });
+
     await browser.close();
 
     res.setHeader("Content-Type", "application/pdf");
@@ -111,4 +131,7 @@ Write in professional tone, plain text, no markdown.
   }
 });
 
-app.listen(process.env.PORT || 4000, () => console.log("✅ Analyzer backend running"));
+// -------------------- START SERVER --------------------
+app.listen(process.env.PORT || 4000, () =>
+  console.log("✅ Analyzer backend running")
+);
