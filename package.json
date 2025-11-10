@@ -17,10 +17,17 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "lighthouse": "^13.0.1",
-    "metascraper": "^5.49.5",
     "openai": "^6.8.1",
     "puppeteer": "^24.4.0",
-    "puppeteer-core": "^24.4.0"
+    "puppeteer-core": "^24.4.0",
+     "metascraper": "^5.49.5",
+    "metascraper-author": "^5.49.5",
+    "metascraper-description": "^5.49.5",
+    "metascraper-image": "^5.49.5",
+    "metascraper-lang": "^5.49.5",
+    "metascraper-publisher": "^5.49.5",
+    "metascraper-title": "^5.49.5",
+    "metascraper-url": "^5.49.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
