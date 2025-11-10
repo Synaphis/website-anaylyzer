@@ -1,4 +1,5 @@
-import puppeteer from "puppeteer";
+import puppeteer from "puppeteer-core";
+import chromium from "chrome-aws-lambda";
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -13,9 +14,7 @@ dotenv.config();
 const app = express();
 
 // ---------------- CORS ----------------
-// Temporary: allow all origins for testing
 app.use(cors({ origin: "*" }));
-
 app.use(express.json());
 
 const __filename = fileURLToPath(import.meta.url);
@@ -23,32 +22,25 @@ const __dirname = path.dirname(__filename);
 
 // Helper: convert text → HTML
 function textToHTML(text) { 
-  // Keep your existing implementation here
   const lines = text.split("\n");
   let html = "";
   let inList = false;
-
   for (let line of lines) {
     line = line.trim();
     if (!line) continue;
-
     if (/^-/.test(line)) {
       if (!inList) { html += "<ul>"; inList = true; }
       html += `<li>${line.replace(/^- /, "")}</li>`;
       continue;
     }
-
     if (inList) { html += "</ul>"; inList = false; }
     html += `<p>${line}</p>`;
   }
-
   if (inList) html += "</ul>";
   return html;
 }
 
 // ---------------- Routes ----------------
-
-// Log requests
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
   next();
@@ -58,7 +50,6 @@ app.post("/analyze", async (req, res) => {
   try {
     const { url } = req.body;
     if (!url) return res.status(400).json({ error: "URL is required" });
-
     const result = await analyzeWebsite(url);
     res.json(result);
   } catch (error) {
@@ -89,9 +80,9 @@ Actionable Recommendations
 Write in professional tone, plain text, no markdown.
 `;
 
-    const client = new OpenAI({
-      baseURL: "https://router.huggingface.co/v1",
-      apiKey: process.env.HUGGINGFACE_API_KEY,
+    const client = new OpenAI({ 
+      baseURL: "https://router.huggingface.co/v1", 
+      apiKey: process.env.HUGGINGFACE_API_KEY 
     });
 
     const response = await client.chat.completions.create({
@@ -110,20 +101,21 @@ Write in professional tone, plain text, no markdown.
       .replace("{{date}}", new Date().toLocaleDateString())
       .replace("{{{reportText}}}", formattedHTML);
 
-    // Puppeteer using Render's Chrome
+    // Use chrome-aws-lambda
     const browser = await puppeteer.launch({
-      headless: true,
-      executablePath: process.env.CHROME_PATH || "/usr/bin/google-chrome",
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath,
+      headless: chromium.headless,
     });
 
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
 
-    const pdfBuffer = await page.pdf({ 
-      format: "A4", 
-      printBackground: true, 
-      margin: { top: 0, bottom: 0, left: 0, right: 0 } 
+    const pdfBuffer = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: { top: 0, bottom: 0, left: 0, right: 0 },
     });
 
     await browser.close();
