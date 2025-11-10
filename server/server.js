@@ -1,11 +1,13 @@
-import puppeteer from "puppeteer";
+import puppeteer, { executablePath } from "puppeteer";
 import express from "express";
 import cors from "cors";
 import fs from "fs";
 import path from "path";
-import OpenAI from "openai"; // still used as client wrapper
+import OpenAI from "openai"; // client wrapper for Hugging Face router
 import { analyzeWebsite } from "../lib/analyze.mjs";
 import { fileURLToPath } from "url";
+import { launch as launchChrome } from "chrome-launcher";
+import lighthouse from "lighthouse";
 
 const app = express();
 app.use(cors({ origin: "*" }));
@@ -42,8 +44,6 @@ function textToHTML(text) {
 }
 
 // ---------------- ROUTES ----------------
-
-// Log all requests
 app.use((req, res, next) => {
   console.log(
     `[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${req.headers.origin}`
@@ -71,6 +71,7 @@ app.post("/report-pdf", async (req, res) => {
     const { data } = req.body;
     if (!data) return res.status(400).json({ error: "Missing analysis JSON" });
 
+    // --- LLM Prompt ---
     const prompt = `
 You are a professional website auditor.
 Write a detailed audit report based on this JSON:
@@ -88,7 +89,7 @@ Actionable Recommendations
 Write in professional tone, plain text, no markdown.
 `;
 
-    // ✅ Use Hugging Face router endpoint
+    // --- Hugging Face LLM client ---
     const client = new OpenAI({
       baseURL: "https://router.huggingface.co/v1",
       apiKey: process.env.HUGGINGFACE_API_KEY,
@@ -105,6 +106,7 @@ Write in professional tone, plain text, no markdown.
       "No content generated.";
     const formattedHTML = textToHTML(reportText);
 
+    // --- Load HTML template ---
     const templatePath = path.join(__dirname, "templates/report.html");
     let html = fs.readFileSync(templatePath, "utf8");
     html = html
@@ -112,20 +114,19 @@ Write in professional tone, plain text, no markdown.
       .replace("{{date}}", new Date().toLocaleDateString())
       .replace("{{{reportText}}}", formattedHTML);
 
-    // ✅ Puppeteer fix for Render (downloads its own Chrome)
-  // ✅ Puppeteer launch fix for Render
-const browser = await puppeteer.launch({
-  headless: true,
-  args: [
-    "--no-sandbox",
-    "--disable-setuid-sandbox",
-    "--disable-dev-shm-usage",
-    "--disable-gpu",
-    "--single-process",
-    "--no-zygote"
-  ],
-});
-
+    // --- Puppeteer launch for Render ---
+    const browser = await puppeteer.launch({
+      headless: true,
+      executablePath: executablePath(), // ensure Puppeteer uses bundled Chromium
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--single-process",
+        "--no-zygote",
+      ],
+    });
 
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
@@ -147,6 +148,33 @@ const browser = await puppeteer.launch({
   } catch (error) {
     console.error("PDF Generation Error:", error);
     res.status(500).json({ error: "Failed to generate PDF" });
+  }
+});
+
+// --- Optional Lighthouse endpoint ---
+app.post("/performance", async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ error: "URL is required" });
+
+    const chrome = await launchChrome({
+      chromePath: executablePath(),
+      chromeFlags: ["--headless", "--no-sandbox"],
+    });
+
+    const result = await lighthouse(url, {
+      logLevel: "error",
+      output: "json",
+      onlyCategories: ["performance"],
+      port: chrome.port,
+    });
+
+    await chrome.kill();
+
+    res.json({ performance: result.lhr.categories.performance });
+  } catch (error) {
+    console.error("Lighthouse Error:", error);
+    res.status(500).json({ error: "Failed to get performance metrics" });
   }
 });
 
