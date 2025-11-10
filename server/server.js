@@ -1,4 +1,3 @@
-// server/server.js
 import puppeteer from "puppeteer-core";
 import express from "express";
 import cors from "cors";
@@ -10,7 +9,6 @@ import { analyzeWebsite } from "../lib/analyze.mjs";
 import { fileURLToPath } from "url";
 
 dotenv.config();
-
 const app = express();
 
 // ---------------- CORS ----------------
@@ -103,7 +101,6 @@ Write in professional tone, plain text, no markdown.
       .replace("{{date}}", new Date().toLocaleDateString())
       .replace("{{{reportText}}}", formattedHTML);
 
-    // Puppeteer using system Chrome
     const browser = await puppeteer.launch({
       headless: true,
       executablePath: process.env.CHROME_PATH || "/usr/bin/google-chrome",
