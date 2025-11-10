@@ -6,7 +6,8 @@
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",
-    "dev": "nodemon server/server.js"
+    "dev": "nodemon server/server.js",
+     "postinstall": "npx puppeteer browsers install chrome"
   },
   "dependencies": {
     "puppeteer": "^24.4.0",
