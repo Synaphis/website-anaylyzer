@@ -6,7 +6,7 @@ import fs from "fs";
 import path from "path";
 import express from "express";
 import cors from "cors";
-import puppeteer from "puppeteer"; // full puppeteer package (bundled Chromium)
+import puppeteer from "puppeteer-core";
 import OpenAI from "openai";
 import { analyzeWebsite } from "../lib/analyze.mjs";
 import { fileURLToPath } from "url";
@@ -55,6 +55,77 @@ app.use((req, res, next) => {
   next();
 });
 
+// Utility: find chrome executable in ./chrome folder installed by render-build.sh
+function findLocalChrome() {
+  try {
+    const chromeRoot = path.resolve(process.cwd(), "chrome");
+    if (!fs.existsSync(chromeRoot)) return null;
+
+    // chrome folder contains a subfolder named 'chrome' and then a version folder
+    // pattern: chrome/chrome/<version>/chrome-linux64/chrome
+    const entries = fs.readdirSync(chromeRoot, { withFileTypes: true });
+    // look for 'chrome' directory (ppl using PUPPETEER_CACHE_DIR=./chrome produce chrome/chrome/...)
+    const chromeDir = entries.find(e => e.isDirectory() && e.name === "chrome") || entries.find(e => e.isDirectory());
+    if (!chromeDir) return null;
+
+    const chromeDirPath = path.join(chromeRoot, chromeDir.name);
+    // if this contains version directories, pick the first one
+    const versions = fs.readdirSync(chromeDirPath, { withFileTypes: true }).filter(d => d.isDirectory());
+    if (versions.length === 0) return null;
+    // try each version until we find the executable
+    for (const v of versions) {
+      const candidate = path.join(chromeDirPath, v.name, "chrome-linux64", "chrome");
+      if (fs.existsSync(candidate)) return candidate;
+      // some puppeteer versions might put it under chrome-mac/chrome or different names; skip those here
+    }
+    return null;
+  } catch (err) {
+    console.warn("findLocalChrome error:", err?.message || err);
+    return null;
+  }
+}
+
+async function launchBrowser() {
+  // 1) explicit env var override
+  const envPath = process.env.CHROME_PATH;
+  if (envPath && fs.existsSync(envPath)) {
+    console.log("Using CHROME_PATH from env:", envPath);
+    return puppeteer.launch({
+      executablePath: envPath,
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    });
+  }
+
+  // 2) local chrome installed during build into ./chrome
+  const localChrome = findLocalChrome();
+  if (localChrome) {
+    console.log("Using local chrome at:", localChrome);
+    return puppeteer.launch({
+      executablePath: localChrome,
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    });
+  }
+
+  // 3) fall back to puppeteer.executablePath() if available (rare with puppeteer-core)
+  try {
+    const exe = puppeteer.executablePath && typeof puppeteer.executablePath === "function" ? puppeteer.executablePath() : null;
+    if (exe && fs.existsSync(exe)) {
+      console.log("Using puppeteer.executablePath():", exe);
+      return puppeteer.launch({
+        executablePath: exe,
+        headless: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+      });
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  throw new Error("Could not locate Chrome executable. Set CHROME_PATH, or ensure the build step installed Chrome into ./chrome.");
+}
+
 // ----------------- /analyze -----------------
 app.post("/analyze", async (req, res) => {
   try {
@@ -72,6 +143,7 @@ app.post("/analyze", async (req, res) => {
 
 // ----------------- /report-pdf -----------------
 app.post("/report-pdf", async (req, res) => {
+  let browser;
   try {
     const { data } = req.body;
     if (!data) return res.status(400).json({ error: "Missing analysis JSON" });
@@ -117,26 +189,7 @@ Write in professional tone, plain text, no markdown.
                .replace("{{date}}", new Date().toLocaleDateString())
                .replace("{{{reportText}}}", formattedHTML);
 
-    // Puppeteer launch: prefer bundled Chromium if installed during build; fallback: do not set executablePath
-    // If you want to force a system binary, set CHROME_PATH in Render env.
-    const execPathFromEnv = process.env.CHROME_PATH;
-    const tryExecPath = execPathFromEnv || (puppeteer.executablePath ? puppeteer.executablePath() : null);
-    const useExecPath = tryExecPath && fs.existsSync(tryExecPath) ? tryExecPath : undefined;
-
-    console.log("Puppeteer execPath candidate:", tryExecPath, "exists:", !!useExecPath);
-
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-        "--single-process",
-        "--no-zygote",
-      ],
-      ...(useExecPath ? { executablePath: useExecPath } : {}),
-    });
+    browser = await launchBrowser();
 
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
@@ -148,20 +201,20 @@ Write in professional tone, plain text, no markdown.
     });
 
     await browser.close();
+    browser = null;
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename=Website_Audit.pdf`);
     res.send(pdfBuffer);
   } catch (error) {
     console.error("PDF Generation Error:", error);
-    // Helpful error for Render / Puppeteer issues
-    if (error.message && error.message.includes("Could not find Chrome")) {
-      return res.status(500).json({
-        error: "Chromium not found. Ensure 'npx puppeteer install' ran during build or set CHROME_PATH env var to a valid Chrome/Chromium binary.",
-        details: error.message,
-      });
+    if (browser) {
+      try { await browser.close(); } catch (e) { /* ignore */ }
     }
-    res.status(500).json({ error: "Failed to generate PDF", details: error?.message || error });
+    res.status(500).json({
+      error: "Failed to generate PDF",
+      details: error?.message || String(error),
+    });
   }
 });
 
