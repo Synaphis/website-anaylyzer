@@ -37,8 +37,6 @@ function textToHTML(text) {
 }
 
 // ---------------- ROUTES ----------------
-
-// Log all requests
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
   next();
@@ -115,7 +113,6 @@ Write in professional tone, plain text, no markdown.
         "--single-process",
         "--no-zygote"
       ],
-      // important: uses Puppeteer's bundled Chromium
       executablePath: puppeteer.executablePath(),
     });
 
