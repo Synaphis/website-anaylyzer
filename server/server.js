@@ -32,22 +32,50 @@ function textToHTML(text = "") {
   const lines = text.split("\n");
   let html = "";
   let inList = false;
+
+  // Define major section headings
+  const headings = [
+    "Executive Summary",
+    "SEO Findings",
+    "Accessibility Review",
+    "Performance Review",
+    "Critical Issues",
+    "Actionable Recommendations"
+  ];
+
   for (let line of lines) {
     line = line.trim();
     if (!line) continue;
-    // strip common markdown
-    line = line.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1").replace(/`(.*?)`/g, "$1");
-    if (/^-/.test(line)) {
+
+    // Check if the line is a major section heading
+    const isHeading = headings.find(h => line.toLowerCase().startsWith(h.toLowerCase()));
+    if (isHeading) {
+      if (inList) { html += "</ul>"; inList = false; }
+      // Add a page break for all headings except the first one
+      html += `<h2 class="page-break">${line}</h2>`;
+      continue;
+    }
+
+    // Detect lists
+    if (/^- /.test(line)) {
       if (!inList) { html += "<ul>"; inList = true; }
       html += `<li>${line.replace(/^- /, "")}</li>`;
       continue;
     }
     if (inList) { html += "</ul>"; inList = false; }
+
+    // Convert markdown bold/italic to HTML
+    line = line.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+    line = line.replace(/\*(.*?)\*/g, "<em>$1</em>");
+
     html += `<p>${line}</p>`;
   }
+
   if (inList) html += "</ul>";
+
   return html;
 }
+
 
 // Log incoming requests
 app.use((req, res, next) => {
