@@ -238,77 +238,93 @@ ${JSON.stringify(data)}
 
 
 // ---------------- PDF GENERATION (FIXED) ----------------
+// ---------------- PDF GENERATION (IMPROVED) ----------------
 app.post("/report-pdf", async (req, res) => {
   let browser = null;
   try {
     const { url } = req.body;
     if (!url) return res.status(400).json({ error: "URL is required" });
 
+    // 1️⃣ Get analysis and generate LLM report
     const analysis = await safeAnalyzeWebsite(url);
     const reportText = await generateReportWithData(analysis);
-    let htmlContent = textToHTML(reportText);
 
+    // 2️⃣ Convert report text to HTML sections
+    let htmlContent = `<div class="page">${textToHTML(reportText)}</div>`;
+
+    // Add disclaimer as final section
     htmlContent += `
-      <div class="section">
-        <h2>Disclaimer</h2>
-        <p>This automated audit provides a high-level overview based on available data and may not capture every
-opportunity for optimization. For a more thorough, tailored analysis and implementation support, Synaphis offers
-SaaS tools and expert consultancy. To explore deeper improvements to SEO, performance, accessibility, design, or
-overall digital strategy, please contact at sales@synaphis.com.</p>
+      <div class="page">
+        <div class="section">
+          <h2>Disclaimer</h2>
+          <p>
+            This automated audit provides a high-level overview based on available data and may not capture every
+            opportunity for optimization. For a more thorough, tailored analysis and implementation support, Synaphis offers
+            SaaS tools and expert consultancy. To explore deeper improvements to SEO, performance, accessibility, design, or
+            overall digital strategy, please contact sales@synaphis.com.
+          </p>
+        </div>
       </div>
     `;
 
+    // 3️⃣ Load template
     const templatesDir = path.join(__dirname, "templates");
     const templatePath = path.join(templatesDir, "report.html");
 
-    if (!fs.existsSync(templatesDir)) fs.mkdirSync(templatesDir, { recursive: true });
     if (!fs.existsSync(templatePath)) {
+      // fallback minimal template if missing
+      if (!fs.existsSync(templatesDir)) fs.mkdirSync(templatesDir, { recursive: true });
       fs.writeFileSync(templatePath, `
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
+<title>Website Audit</title>
 <style>
-body { font-family: Arial, sans-serif; margin: 40px; }
-h2 { margin-top: 25px; border-left: 4px solid #007acc; padding-left: 10px; }
-.page-break { page-break-before: always; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; color: #222; background: #f5f5f5; padding: 40px; }
+  .cover { width: 100%; text-align: center; margin-bottom: 50px; }
+  .cover-title { font-size: 48px; font-weight: bold; margin-bottom: 10px; }
+  .cover-sub { font-size: 24px; color: #555; }
+  .page { background: #fff; padding: 40px; margin-bottom: 30px; box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
+  .section { margin-bottom: 30px; padding-left: 15px; border-left: 3px solid #e0e0e0; }
+  h2 { font-size: 26px; margin-bottom: 15px; }
+  p { margin-bottom: 12px; line-height: 1.6; }
+  .footer { text-align: center; font-size: 12px; color: #666; margin-top: 40px; }
 </style>
 </head>
 <body>
-<h1>online presence & performanc Audit Report</h1>
-<p><strong>URL:</strong> {{url}}</p>
-<p><strong>Date:</strong> {{date}}</p>
-<hr>
+<div class="cover">
+  <div class="cover-title">Website, SEO & Social Analysis</div>
+  <div class="cover-sub">{{url}}</div>
+  <div class="footer">Conducted {{date}}</div>
+</div>
 {{{reportText}}}
+<div class="footer">© 2025 Synaphis — All Rights Reserved</div>
 </body>
 </html>`);
     }
 
+    // 4️⃣ Inject dynamic content
     let finalHtml = fs.readFileSync(templatePath, "utf8")
       .replace("{{url}}", analysis.url)
       .replace("{{date}}", new Date().toLocaleDateString())
       .replace("{{{reportText}}}", htmlContent);
 
+    // 5️⃣ Launch Puppeteer and generate PDF
     browser = await launchBrowser();
     const page = await browser.newPage();
-    console.log("✅ Browser launched:", await browser.version());
 
-    // 🚀 KEY FIX — NO external requests & no `networkidle2`
+    // Block external requests (optional)
     await page.setRequestInterception(true);
     page.on("request", (req) => {
       if (["image", "font", "stylesheet", "script"].includes(req.resourceType())) {
         req.abort();
-      } else {
-        req.continue();
-      }
+      } else req.continue();
     });
 
-    // Convert HTML into data URL and load it
     const encoded = Buffer.from(finalHtml, "utf8").toString("base64");
-    await page.goto(`data:text/html;base64,${encoded}`, {
-      waitUntil: "load",
-      timeout: 60000,
-    });
+    await page.goto(`data:text/html;base64,${encoded}`, { waitUntil: "load", timeout: 60000 });
 
     const pdfBuffer = await page.pdf({
       format: "A4",
@@ -322,12 +338,14 @@ h2 { margin-top: 25px; border-left: 4px solid #007acc; padding-left: 10px; }
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="Website_Audit.pdf"`);
     res.send(pdfBuffer);
+
   } catch (err) {
     console.error("PDF generation error:", err);
     if (browser) await browser.close();
     res.status(500).json({ error: "Failed to generate PDF", details: err.message });
   }
 });
+
 
 // ---------------- HEALTH ----------------
 app.get("/health", (_req, res) => res.json({ status: "ok", model: process.env.HF_MODEL || "default" }));
