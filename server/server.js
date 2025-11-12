@@ -161,7 +161,7 @@ async function safeAnalyzeWebsite(url) {
 
 // ---------------- LLM REPORT GENERATION ----------------
 const systemMessage = `
-You are a senior-level website audit engine with expertise in SEO, social media, accessibility, performance, design, and brand trust.
+You are a senior-level online presence & performance audit engine with expertise in website, SEO, social media, accessibility, performance, design, and brand trust.
 
 Your job: Produce a polished, executive-quality website audit using only the information in the analysis JSON.
 
@@ -205,7 +205,7 @@ async function generateReportWithData(data) {
   const model = process.env.HF_MODEL || "meta-llama/Llama-3.1-8B-Instruct:novita";
 
   const userMessage = `
-Generate the full website audit using the required section structure.
+Generate the full online presence & performance audit using the required section structure.
 
 Use the JSON values directly and clearly in prose.
 If any category has limited information, apply subtle expert phrasing such as:
