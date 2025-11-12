@@ -163,7 +163,7 @@ async function safeAnalyzeWebsite(url) {
 const systemMessage = `
 You are a senior-level online presence & performance audit engine with expertise in website, SEO, social media, accessibility, performance, design, and brand trust.
 
-Your job: Produce a polished, executive-quality website audit using only the information in the analysis JSON.
+Your job: Produce a polished, executive-quality online presence & performanc audit using only the information in the analysis JSON.
 
 STRICT RULES:
 - Use JSON data exactly as given. Do not invent numbers, facts, features, or results.
@@ -222,7 +222,7 @@ ${JSON.stringify(data)}
       { role: "system", content: systemMessage },
       { role: "user", content: userMessage },
     ],
-    max_tokens: 6000,
+    max_tokens: 12000,
     temperature: 0.1,
     top_p: 1.0,
     presence_penalty: 0,
@@ -275,7 +275,7 @@ h2 { margin-top: 25px; border-left: 4px solid #007acc; padding-left: 10px; }
 </style>
 </head>
 <body>
-<h1>Website Audit Report</h1>
+<h1>online presence & performanc Audit Report</h1>
 <p><strong>URL:</strong> {{url}}</p>
 <p><strong>Date:</strong> {{date}}</p>
 <hr>
