@@ -237,8 +237,9 @@ ${JSON.stringify(data)}
 }
 
 
-// ---------------- PDF GENERATION (FIXED) ----------------
-// ---------------- PDF GENERATION (IMPROVED) ----------------
+
+
+// ---------------- PDF GENERATION (TEMPLATE ONLY) ----------------
 app.post("/report-pdf", async (req, res) => {
   let browser = null;
   try {
@@ -250,63 +251,24 @@ app.post("/report-pdf", async (req, res) => {
     const reportText = await generateReportWithData(analysis);
 
     // 2️⃣ Convert report text to HTML sections
-    let htmlContent = `<div class="page">${textToHTML(reportText)}</div>`;
-
-    // Add disclaimer as final section
-    htmlContent += `
-      <div class="page">
-        <div class="section">
-          <h2>Disclaimer</h2>
-          <p>
-            This automated audit provides a high-level overview based on available data and may not capture every
-            opportunity for optimization. For a more thorough, tailored analysis and implementation support, Synaphis offers
-            SaaS tools and expert consultancy. To explore deeper improvements to SEO, performance, accessibility, design, or
-            overall digital strategy, please contact sales@synaphis.com.
-          </p>
-        </div>
+    const htmlContent = textToHTML(reportText) + `
+      <div class="section">
+        <h2>Disclaimer</h2>
+        <p>
+          This automated audit provides a high-level overview based on available data and may not capture every
+          opportunity for optimization. For a more thorough, tailored analysis and implementation support, Synaphis offers
+          SaaS tools and expert consultancy. To explore deeper improvements to SEO, performance, accessibility, design, or
+          overall digital strategy, please contact sales@synaphis.com.
+        </p>
       </div>
     `;
 
-    // 3️⃣ Load template
-    const templatesDir = path.join(__dirname, "templates");
-    const templatePath = path.join(templatesDir, "report.html");
+    // 3️⃣ Load the template
+    const templatePath = path.join(__dirname, "templates", "report.html");
+    const templateHtml = fs.readFileSync(templatePath, "utf8");
 
-    if (!fs.existsSync(templatePath)) {
-      // fallback minimal template if missing
-      if (!fs.existsSync(templatesDir)) fs.mkdirSync(templatesDir, { recursive: true });
-      fs.writeFileSync(templatePath, `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Website Audit</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: Arial, sans-serif; color: #222; background: #f5f5f5; padding: 40px; }
-  .cover { width: 100%; text-align: center; margin-bottom: 50px; }
-  .cover-title { font-size: 48px; font-weight: bold; margin-bottom: 10px; }
-  .cover-sub { font-size: 24px; color: #555; }
-  .page { background: #fff; padding: 40px; margin-bottom: 30px; box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
-  .section { margin-bottom: 30px; padding-left: 15px; border-left: 3px solid #e0e0e0; }
-  h2 { font-size: 26px; margin-bottom: 15px; }
-  p { margin-bottom: 12px; line-height: 1.6; }
-  .footer { text-align: center; font-size: 12px; color: #666; margin-top: 40px; }
-</style>
-</head>
-<body>
-<div class="cover">
-  <div class="cover-title">Website, SEO & Social Analysis</div>
-  <div class="cover-sub">{{url}}</div>
-  <div class="footer">Conducted {{date}}</div>
-</div>
-{{{reportText}}}
-<div class="footer">© 2025 Synaphis — All Rights Reserved</div>
-</body>
-</html>`);
-    }
-
-    // 4️⃣ Inject dynamic content
-    let finalHtml = fs.readFileSync(templatePath, "utf8")
+    // 4️⃣ Inject dynamic values
+    const finalHtml = templateHtml
       .replace("{{url}}", analysis.url)
       .replace("{{date}}", new Date().toLocaleDateString())
       .replace("{{{reportText}}}", htmlContent);
@@ -315,7 +277,7 @@ app.post("/report-pdf", async (req, res) => {
     browser = await launchBrowser();
     const page = await browser.newPage();
 
-    // Block external requests (optional)
+    // Optional: block external requests to speed up rendering
     await page.setRequestInterception(true);
     page.on("request", (req) => {
       if (["image", "font", "stylesheet", "script"].includes(req.resourceType())) {
