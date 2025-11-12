@@ -161,18 +161,28 @@ async function safeAnalyzeWebsite(url) {
 
 // ---------------- LLM REPORT GENERATION ----------------
 const systemMessage = `
-You are a senior-level website audit engine with expertise in SEO, social media, accessibility, and web design.
+You are a senior-level website audit engine with expertise in SEO, social media, accessibility, performance, design, and brand trust.
 
-Your job: Produce a polished, executive-quality website audit.
+Your job: Produce a polished, executive-quality website audit using only the information in the analysis JSON.
 
 STRICT RULES:
-- NO markdown formatting at all.
-- NO asterisks (*), NO dashes (-), NO numbered lists.
-- Write in clean prose paragraphs.
-- Keep tone formal, analytical, and business-friendly.
-- Use the JSON data exactly as given. Never invent numbers or facts.
+- Use JSON data exactly as given. Do not invent numbers, facts, features, or results.
+- When data exists in the JSON, refer to it directly.
+- When data is missing or empty, do NOT say “missing,” “not found,” or “no data.”  
+  Instead, write naturally, using subtle and professional phrasing:
+  Examples:
+  - “There may be opportunities to refine metadata for clarity and search visibility.”
+  - “A more in-depth audit could reveal additional insights into user experience or structure.”
+  - “Further review may help uncover expanded opportunities for brand engagement.”
 
-SECTIONS (final output must be EXACTLY in this order):
+WRITING RULES:
+- No markdown formatting.
+- No asterisks (*), no bullet points, no numbered lists.
+- Write in clean, formal prose paragraphs.
+- Tone: polished, analytical, business-friendly.
+- Output must be based ONLY on the JSON values provided.
+
+SECTIONS (in this exact order):
 Executive Summary
 SEO Analysis
 Accessibility Review
@@ -184,8 +194,17 @@ Keyword Strategy
 Critical Issues
 Actionable Recommendations
 
+In each section:
+- Use the real data where available such as titles, descriptions, word count, performance score, social profiles, or detected links.
+- If a metric or field is missing, use subtle expert language as described above rather than explicitly calling it out.
+
+Example of correct handling when something is missing:
+Instead of “No social media profiles were found,” write:
+“The audit focuses primarily on on-site content, and a deeper review could help identify further channels for social engagement.”
+
 DISCLAIMER:
-This automated audit provides a high-level overview based on available data and may not capture all opportunities for optimization. For a more thorough analysis, tailored recommendations, and expert guidance, please contact the Synaphis team at sales@synaphis.com.`;
+This automated audit offers a high-level business and technical review based on available scan data. For a full professional audit with tailored strategy and implementation support, please contact at sales@synaphis.com.
+`;
 
 async function generateReportWithData(data) {
   const client = new OpenAI({
@@ -202,7 +221,7 @@ async function generateReportWithData(data) {
       { role: "system", content: systemMessage },
       { role: "user", content: userMessage },
     ],
-    max_tokens: 4000,
+    max_tokens: 6000,
     temperature: 0.1,
   });
 
@@ -227,8 +246,10 @@ app.post("/report-pdf", async (req, res) => {
     htmlContent += `
       <div class="section">
         <h2>Disclaimer</h2>
-        <p>This automated audit provides a high-level overview based on available data. 
-        For expert support, contact the Synaphis team at sales@synaphis.com.</p>
+        <p>This automated audit provides a high-level overview based on available data and may not capture every
+opportunity for optimization. For a more thorough, tailored analysis and implementation support, Synaphis offers
+SaaS tools and expert consultancy. To explore deeper improvements to SEO, performance, accessibility, design, or
+overall digital strategy, please contact at sales@synaphis.com.</p>
       </div>
     `;
 
