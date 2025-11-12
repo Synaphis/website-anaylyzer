@@ -7,13 +7,13 @@
   /* ---------------- GLOBAL ---------------- */
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { 
-    font-family: Arial, Helvetica, sans-serif; /* safer for headless PDF */
+    font-family: Arial, Helvetica, sans-serif; 
     color: #222; 
     background: #f5f5f5; 
     line-height: 1.7; 
     font-size: 16px; 
   }
-  p { margin-bottom: 14px; widows: 3; orphans: 3; }
+  p { margin-bottom: 16px; widows: 3; orphans: 3; }
 
   /* ---------------- COVER PAGE ---------------- */
   .cover {
@@ -28,18 +28,18 @@
     align-items: center;
     text-align: center;
     page-break-after: always;
-    padding: 60px 40px;
+    padding: 100px 40px 60px 40px;
   }
   .cover-title {
-    font-size: 56px;
+    font-size: 60px;
     font-weight: 900;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
     line-height: 1.2;
   }
   .cover-sub {
-    font-size: 28px;
+    font-size: 30px;
     opacity: 0.85;
-    margin-bottom: 12px;
+    margin-bottom: 20px;
   }
   .cover-footer {
     position: absolute;
@@ -57,45 +57,57 @@
   .page {
     width: 100%;
     max-width: 900px;
-    margin: 40px auto;
-    padding: 60px 50px;
+    margin: 60px auto;
+    padding: 100px 50px 60px 50px;
     background: #fff;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.1);
     font-size: 16px;
-    line-height: 1.7;
+    line-height: 1.8;
     page-break-after: always;
   }
 
+  /* ---------------- SECTIONS ---------------- */
   .section {
     page-break-inside: avoid;
     break-inside: avoid;
     margin-bottom: 40px;
-    padding: 20px 25px;
-    border-left: 4px solid #007acc;
-    background-color: #f9f9f9;
-    border-radius: 8px;
+    padding: 25px 30px;
+    border-left: 5px solid #007acc;
+    background-color: #fdfdfd;
+    border-radius: 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
   }
 
   h2 {
-    font-size: 28px;
-    margin-top: 40px;
-    margin-bottom: 16px;
-    padding-bottom: 8px;
+    font-size: 32px;
+    margin-top: 50px;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
     border-bottom: 2px solid #e0e0e0;
     color: #007acc;
     page-break-inside: avoid;
   }
 
   ul {
-    margin: 10px 0 20px 30px;
+    margin: 12px 0 24px 36px;
     list-style-type: disc;
     page-break-inside: avoid;
   }
 
-  li {
-    margin-bottom: 8px;
+  li { margin-bottom: 10px; }
+
+  /* ---------------- DISCLAIMER ---------------- */
+  .disclaimer {
+    font-size: 14px;
+    color: #555;
+    background-color: #f0f4f8;
+    border-left: 5px solid #ff9900;
+    border-radius: 10px;
+    padding: 20px 25px;
+    margin-top: 40px;
   }
 
+  /* ---------------- FOOTER ---------------- */
   .footer {
     margin-top: 60px;
     font-size: 12px;
@@ -106,10 +118,9 @@
 
   /* ---------------- RESPONSIVE ---------------- */
   @media screen and (max-width: 1000px) {
-    .page {
-      width: 95%;
-      padding: 40px 25px;
-    }
+    .page { width: 95%; padding: 80px 25px 50px 25px; }
+    .section { padding: 20px 20px; }
+    .disclaimer { padding: 15px 20px; }
   }
 </style>
 </head>
@@ -118,7 +129,7 @@
 <!-- ================= COVER PAGE ================= -->
 <div class="cover">
   <div class="cover-title">Website, SEO & Social Analysis</div>
- 
+  <div class="cover-sub">{{url}}</div>
 
   <div class="cover-footer">
     <span>Synaphis — Reimagining What's Possible.</span>
@@ -129,6 +140,13 @@
 <!-- ================= CONTENT PAGE ================= -->
 <div class="page">
   {{{reportText}}}
+
+  <!-- DISCLAIMER -->
+  <div class="disclaimer">
+    This automated audit provides a high-level overview based on available data and may not capture every opportunity for optimization. 
+    For a more thorough, tailored analysis and expert guidance, Synaphis offers SaaS tools and consultancy. 
+    To explore deeper improvements to SEO, performance, accessibility, design, or overall digital strategy, please contact the Synaphis team at sales@synaphis.com.
+  </div>
 </div>
 
 <!-- ================= FOOTER ================= -->
