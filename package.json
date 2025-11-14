@@ -5,9 +5,7 @@
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",
-    "dev": "nodemon server/server.js",
-    "postinstall": "./render-build.sh"
-    
+    "dev": "nodemon server/server.js"
   },
   "dependencies": {
     "@axe-core/puppeteer": "^4.11.0",
@@ -22,6 +20,7 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "express-rate-limit": "^8.2.1",
     "json2csv": "^6.0.0-alpha.2",
     "lighthouse": "^13.0.1",
     "metascraper": "^5.49.5",
@@ -29,10 +28,12 @@
     "metascraper-description": "^5.49.5",
     "metascraper-image": "^5.49.5",
     "metascraper-lang": "^5.49.5",
+    "metascraper-logo": "^5.49.5",
     "metascraper-publisher": "^5.49.5",
     "metascraper-title": "^5.49.5",
     "metascraper-url": "^5.49.5",
     "next": "16.0.1",
+    "nodemailer": "^7.0.10",
     "openai": "^6.8.1",
     "pdf-lib": "^1.17.1",
     "pdfkit": "^0.17.2",

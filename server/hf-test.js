@@ -36,43 +36,50 @@ async function testHF() {
     });
 
     // Get website analysis JSON
-    const url = "https://www.gymshark.com/";
+    const url = "https://www.nike.com";
     console.log(`✅ Getting analysis JSON for: ${url}`);
     const analysisJSON = await analyzeWebsite(url);
+    const safeJSON = safeStringify(analysisJSON);
 
     // Prompt to LLM
-    const systemMessage = `
-You are a senior-level website audit engine with expertise in SEO, social media, accessibility, and web design.
-Your task is to generate a professional, data-driven audit report.
+   
+const systemMessage = `
+You are a senior digital strategy, marketing, and web audit analyst.
+Produce a professional, executive-friendly report based on the JSON summary.
 
-- Use ONLY the data provided in the JSON.
-- Do NOT invent, speculate, or comment on missing data.
-- Include all arrays, metrics, links, and values exactly as they appear.
-- Present each section clearly, using headings, subheadings, tables, lists, and enumerations where appropriate.
-- Focus on actionable insights, but only from the provided data.
-- Maintain credibility and professionalism; avoid subjective opinions without data support.
-- Return sections in EXACT order:
+Rules:
+- Use the JSON as a foundation but infer missing insights logically.
+- Do not output raw JSON or list keywords.
+- Focus on SEO, social media, website performance, brand recognition, and competitiveness.
+- Highlight opportunities to improve client acquisition and engagement.
+- Use headings and plain text paragraphs only.
 
-1. Executive Summary
-2. SEO Analysis
-3. Accessibility Review
-4. Performance Review
-5. Social Media & Brand Presence
-6. Visual & Design Assessment
-7. Reputation & Trust Signals
-8. Keyword Strategy
-9. Critical Issues
-10. Actionable Recommendations
+Sections (in order):
+Executive Summary
+SEO Analysis
+Accessibility Review
+Performance Review
+Social Media and Brand Presence
+Visual and Design Assessment
+Reputation and Trust Signals
+Keyword Strategy (infer only)
+Critical Issues
+Actionable Recommendations
 `;
+
 
 const userMessage = `
-Convert the following JSON into a fully detailed, structured website audit report.
-Include every field and array from the JSON.
-Use tables and lists for readability.
-Do not omit any data, and do not add information not present in the JSON.
+Generate a digital impact analysis report from the JSON below.
+Keep the section structure and use plain text paragraphs only (no bullets, tables, or markdown).
+Do not mention missing or null fields. Infer business type, products/services, market positioning, and competitiveness.
+Focus on SEO, social media, website effectiveness, brand recognition, visitor conversion, and overall digital impact.
+Provide actionable insights to improve client acquisition and online presence.
+
 JSON:
-${safeStringify(analysisJSON)}
+${safeJSON}
 `;
+
+
 
 
     console.log("✅ Sending JSON to HuggingFace LLM...");
@@ -83,7 +90,7 @@ ${safeStringify(analysisJSON)}
         { role: "system", content: systemMessage },
         { role: "user", content: userMessage }
       ],
-      max_tokens: 12000,
+      max_tokens: 4000,
       temperature: 0.1
     });
 
