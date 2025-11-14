@@ -2,7 +2,7 @@
 // Full server.js — preserves original logic + /report-request + email + rate-limit
 //
 // Install required packages:
-// npm install dotenv express cors puppeteer-core openai nodemailer express-rate-limit
+// npm install dotenv express cors puppeteer-core openai express-rate-limit
 
 import dotenv from "dotenv";
 dotenv.config();
@@ -11,15 +11,18 @@ import fs from "fs";
 import path from "path";
 import express from "express";
 import cors from "cors";
-import puppeteer from "puppeteer";
-// puppeteer-core for custom Chrome path
+import puppeteer from "puppeteer"; // puppeteer-core for custom Chrome path
 import OpenAI from "openai";
-import nodemailer from "nodemailer";
 import rateLimit from "express-rate-limit";
 import { analyzeWebsite } from "../lib/analyze.mjs";
 import { fileURLToPath } from "url";
+import { Resend } from "resend";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const app = express();
+app.set("trust proxy", 1);
+
 app.use(express.json({ limit: "15mb" }));
 
 const FRONTEND = process.env.FRONTEND_URL || "*";
@@ -151,10 +154,7 @@ async function launchBrowser() {
         args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
       });
     }
-  } catch (e) {
-    /** ignore */
-  }
-
+  } catch (e) {}
   throw new Error("Could not locate Chrome. Set CHROME_PATH or install Chrome into ./chrome.");
 }
 
@@ -261,14 +261,13 @@ ${JSON.stringify(data)}
   return text;
 }
 
-// ---------------- PDF GENERATION (helper for /report-request) ----------------
+// ---------------- PDF GENERATION ----------------
 async function generatePdfFromHtml(finalHtml) {
   let browser = null;
   try {
     browser = await launchBrowser();
     const page = await browser.newPage();
 
-    // Block heavy resources (images, fonts, styles, scripts)
     await page.setRequestInterception(true);
     page.on("request", (req) => {
       if (["image", "font", "stylesheet", "script"].includes(req.resourceType())) {
@@ -300,93 +299,31 @@ async function generatePdfFromHtml(finalHtml) {
 }
 
 // ---------------- EMAIL / LEAD VALIDATION HELPERS ----------------
-
-// Role-based local parts to block (support@, careers@, info@, etc.)
 const forbiddenLocalParts = new Set([
-  "support",
-  "careers",
-  "career",
-  "info",
-  "admin",
-  "contact",
-  "webmaster",
-  "sales",
-  "hello",
-  "noreply",
-  "no-reply",
-  "jobs",
-  "hr",
-  "team",
-  "press",
-  "marketing",
-  "office",
-  "service",
-  "services",
+  "support","careers","career","info","admin","contact","webmaster","sales","hello","noreply","no-reply","jobs","hr","team","press","marketing","office","service","services"
 ]);
 
 function isForbiddenEmailLocalPart(email = "") {
   try {
     const local = email.split("@")[0].toLowerCase();
     return forbiddenLocalParts.has(local);
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 }
 
-// Free/public email domains to block
 const freeEmailDomains = new Set([
-  "gmail.com",
-  "yahoo.com",
-  "outlook.com",
-  "hotmail.com",
-  "live.com",
-  "icloud.com",
-  "me.com",
-  "aol.com",
-  "protonmail.com",
-  "pm.me",
-  "yandex.com",
-  "yandex.ru",
-  "zoho.com",
-  "gmx.com",
-  "gmx.de",
+  "gmail.com","yahoo.com","outlook.com","hotmail.com","live.com","icloud.com","me.com","aol.com","protonmail.com","pm.me","yandex.com","yandex.ru","zoho.com","gmx.com","gmx.de"
 ]);
 
 function isFreeEmailDomain(email = "") {
-  try {
-    const domain = email.split("@")[1].toLowerCase();
-    return freeEmailDomains.has(domain);
-  } catch {
-    return false;
-  }
-}
-
-// Create nodemailer transporter from env
-function createEmailTransporter() {
-  const host = process.env.SMTP_HOST;
-  const port = parseInt(process.env.SMTP_PORT || "587", 10);
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-
-  if (!host || !user || !pass) {
-    throw new Error("SMTP config missing (SMTP_HOST, SMTP_USER, SMTP_PASS required)");
-  }
-
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass },
-  });
+  try { return freeEmailDomains.has(email.split("@")[1].toLowerCase()); }
+  catch { return false; }
 }
 
 // ---------------- RATE LIMITING ----------------
 const requestLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 minutes
-  max: 5, // limit each IP to 5 requests per windowMs
-  message: {
-    error: "Too many requests. Please wait a few minutes before trying again.",
-  },
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  message: { error: "Too many requests. Please wait a few minutes before trying again." },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -399,7 +336,6 @@ async function processReportAndEmail(payload) {
     const analysis = await safeAnalyzeWebsite(url);
     const reportText = await generateReportWithData(analysis);
 
-    // Compose htmlContent
     let htmlContent = textToHTML(reportText);
     htmlContent += `
       <div class="section">
@@ -415,9 +351,7 @@ overall digital strategy, please contact at sales@synaphis.com.</p>
     const templatePath = path.join(templatesDir, "report.html");
     if (!fs.existsSync(templatesDir)) fs.mkdirSync(templatesDir, { recursive: true });
     if (!fs.existsSync(templatePath)) {
-      fs.writeFileSync(
-        templatePath,
-        `
+      fs.writeFileSync(templatePath, `
 <!DOCTYPE html>
 <html>
 <head>
@@ -435,9 +369,7 @@ h2 { margin-top: 25px; border-left: 4px solid #007acc; padding-left: 10px; }
 <hr>
 {{{reportText}}}
 </body>
-</html>`,
-        "utf8"
-      );
+</html>`, "utf8");
     }
 
     let finalHtml = fs.readFileSync(templatePath, "utf8")
@@ -447,15 +379,12 @@ h2 { margin-top: 25px; border-left: 4px solid #007acc; padding-left: 10px; }
 
     const pdfBuffer = await generatePdfFromHtml(finalHtml);
 
-    // Email it
-    const transporter = createEmailTransporter();
-    const fromEmail = process.env.FROM_EMAIL || process.env.SMTP_USER;
-
+    // ----------------- SEND EMAIL VIA RESEND -----------------
     const domain = analysis.url.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
     const filename = `audit-report-${domain}.pdf`;
 
-    const mailOptions = {
-      from: fromEmail,
+    await resend.emails.send({
+      from: "sales@synaphis.com",
       to: email,
       subject: `Your Website Audit for ${domain}`,
       text: `Hi ${firstName || ""},
@@ -470,58 +399,34 @@ The Synaphis Team
       attachments: [
         {
           filename,
-          content: pdfBuffer,
-          contentType: "application/pdf",
+          data: pdfBuffer,
         },
       ],
-    };
+    });
 
-    await transporter.sendMail(mailOptions);
-    console.log(`✅ Report emailed to ${email} for URL ${analysis.url}`);
+    console.log(`✅ Report emailed to ${email} for URL ${analysis.url} via Resend`);
   } catch (err) {
     console.error("Error processing report and sending email:", err);
-    // Optionally: push to retry queue or log to persistent store
   }
 }
 
-// ---------------- REPORT REQUEST ROUTE (new) ----------------
-// Rate-limited / lead capture endpoint that accepts lead data and kicks off background processing
+// ---------------- REPORT REQUEST ROUTE ----------------
 app.post("/report-request", requestLimiter, (req, res) => {
   try {
     const { url, firstName, lastName, email, company, jobTitle, phone } = req.body || {};
 
-    // Basic server-side validation & sanitization
-   if (!url) {
-  return res.status(400).json({ error: "Missing URL" });
-}
+    if (!url) return res.status(400).json({ error: "Missing URL" });
 
-
-    // validate email format and disallow forbidden local parts
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ error: "Invalid email format" });
-    }
-    if (isForbiddenEmailLocalPart(email)) {
-      return res.status(400).json({ error: "Please provide a direct company/work email (no role addresses allowed)." });
-    }
+    if (!emailRegex.test(email)) return res.status(400).json({ error: "Invalid email format" });
+    if (isForbiddenEmailLocalPart(email)) return res.status(400).json({ error: "Please provide a direct company/work email (no role addresses allowed)." });
+    if (isFreeEmailDomain(email)) return res.status(400).json({ error: "Please use a company/work email — free personal email domains are not allowed." });
 
-    if (isFreeEmailDomain(email)) {
-      return res.status(400).json({ error: "Please use a company/work email — free personal email domains are not allowed." });
-    }
-
-    // quick URL normalization check
     const normalizedUrl = url.startsWith("http") ? url : `https://${url}`;
-    try {
-      // eslint-disable-next-line no-new
-      new URL(normalizedUrl);
-    } catch {
-      return res.status(400).json({ error: "Invalid URL" });
-    }
+    try { new URL(normalizedUrl); } catch { return res.status(400).json({ error: "Invalid URL" }); }
 
-    // Respond immediately to the client — accepted for processing
     res.status(202).json({ status: "accepted", message: "Request received. The audit will be emailed to you shortly." });
 
-    // Kick off background processing (do not await here)
     processReportAndEmail({
       url: normalizedUrl,
       firstName: String(firstName),
@@ -530,16 +435,14 @@ app.post("/report-request", requestLimiter, (req, res) => {
       company: String(company),
       jobTitle: String(jobTitle),
       phone: String(phone),
-    }).catch((err) => {
-      console.error("Background processing failed:", err);
-    });
+    }).catch((err) => { console.error("Background processing failed:", err); });
   } catch (err) {
     console.error("report-request handler error:", err);
     return res.status(500).json({ error: "Server error" });
   }
 });
 
-// ---------------- PDF GENERATION (original /report-pdf preserved) ----------------
+// ---------------- PDF GENERATION (/report-pdf) ----------------
 app.post("/report-pdf", async (req, res) => {
   let browser = null;
   try {
@@ -595,28 +498,16 @@ h2 { margin-top: 25px; border-left: 4px solid #007acc; padding-left: 10px; }
     const page = await browser.newPage();
     console.log("✅ Browser launched:", await browser.version());
 
-    // 🚀 KEY FIX — NO external requests & no `networkidle2`
     await page.setRequestInterception(true);
     page.on("request", (req) => {
-      if (["image", "font", "stylesheet", "script"].includes(req.resourceType())) {
-        req.abort();
-      } else {
-        req.continue();
-      }
+      if (["image", "font", "stylesheet", "script"].includes(req.resourceType())) req.abort();
+      else req.continue();
     });
 
-    // Convert HTML into data URL and load it
     const encoded = Buffer.from(finalHtml, "utf8").toString("base64");
-    await page.goto(`data:text/html;base64,${encoded}`, {
-      waitUntil: "load",
-      timeout: 60000,
-    });
+    await page.goto(`data:text/html;base64,${encoded}`, { waitUntil: "load", timeout: 60000 });
 
-    const pdfBuffer = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: { top: 0, bottom: 0, left: 0, right: 0 },
-    });
+    const pdfBuffer = await page.pdf({ format: "A4", printBackground: true, margin: { top: 0, bottom: 0, left: 0, right: 0 } });
 
     await browser.close();
     browser = null;
