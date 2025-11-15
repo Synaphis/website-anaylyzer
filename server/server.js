@@ -229,8 +229,8 @@ Focus on revealing the business model, products/services, website effectiveness,
 Do not exaggerate or make claims beyond what the data and logical inference support.
 If data completeness < 20%, start with "Partial scan — high uncertainty."
 
-JSON:
-${safeJSON}
+JSON Input:
+${JSON.stringify(data)}
 `;
 
 
