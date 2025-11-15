@@ -379,15 +379,16 @@ h2 { margin-top: 25px; border-left: 4px solid #007acc; padding-left: 10px; }
 
     const pdfBuffer = await generatePdfFromHtml(finalHtml);
 
+   
     // ----------------- SEND EMAIL VIA RESEND -----------------
-    const domain = analysis.url.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-    const filename = `audit-report-${domain}.pdf`;
+const domain = analysis.url.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+const filename = `audit-report-${domain}.pdf`;
 
-    await resend.emails.send({
-      from: "sales@synaphis.com",
-      to: email,
-      subject: `Your Website Audit for ${domain}`,
-      text: `Hi ${firstName || ""},
+await resend.emails.send({
+  from: "sales@synaphis.com",
+  to: email,
+  subject: `Your Website Audit for ${domain}`,
+  text: `Hi ${firstName || ""},
 
 Please find attached the website audit report for ${domain} that you requested.
 
@@ -396,13 +397,14 @@ If you have any questions or would like a deeper review, reply to this email.
 Best,
 The Synaphis Team
 `,
-      attachments: [
-        {
-          filename,
-          data: pdfBuffer,
-        },
-      ],
-    });
+  attachments: [
+    {
+      filename,
+      content: pdfBuffer.toString("base64"), // <-- REQUIRED FIX
+    },
+  ],
+});
+
 
     console.log(`✅ Report emailed to ${email} for URL ${analysis.url} via Resend`);
   } catch (err) {
