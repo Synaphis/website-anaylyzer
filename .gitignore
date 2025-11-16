@@ -4,3 +4,4 @@ node_modules/
 echo "server/.env" >> .gitignore
 server/.env
 server/.env
+.env
